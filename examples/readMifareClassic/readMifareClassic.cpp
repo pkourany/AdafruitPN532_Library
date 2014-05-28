@@ -1,8 +1,8 @@
 /**************************************************************************/
 /*! 
-    @file     readMifareClassic.pde
-    @author   Adafruit Industries
-	@license  BSD (see license.txt)
+    @file     readMifareClassic.cpp
+    @author   Adafruit Industries, Paul Kourany, Technobly
+    @license  BSD (see license.txt)
 
     This example will wait for any ISO14443A card or tag, and
     depending on the size of the UID will attempt to read from it.
@@ -12,12 +12,12 @@
    
     Reads the 4 byte (32 bit) ID of a MiFare Classic card.
     Since the classic cards have only 32 bit identifiers you can stick
-	them in a single variable and use that to compare card ID's as a
-	number. This doesn't work for ultralight cards that have longer 7
-	byte IDs!
+    them in a single variable and use that to compare card ID's as a
+    number. This doesn't work for ultralight cards that have longer 7
+    byte IDs!
    
     Note that you need the baud rate to be 115200 because we need to
-	print out the data and read from the card at the same time!
+    print out the data and read from the card at the same time!
 
 This is an example sketch for the Adafruit PN532 NFC/RFID breakout boards
 This library works with the Adafruit NFC breakout 
@@ -31,34 +31,42 @@ please support Adafruit and open-source hardware by purchasing
 products from Adafruit!
 */
 /**************************************************************************/
-
 #include "Adafruit_PN532.h"
 
-#ifdef SPARK_CORE
-#define SCK  (A3)
-#define MOSI (A5)
-#define SS   (A2)
-#define MISO (A4)
-#else
-#define SCK  (2)
-#define MOSI (3)
-#define SS   (4)
-#define MISO (5)
-#endif
+// Uncomment for faster debugging!
+#include "spark_disable_wlan.h"
 
-Adafruit_PN532 nfc(SCK, MISO, MOSI, SS);
+#define SCK_PIN  (A3)
+#define MOSI_PIN (A5)
+#define SS_PIN   (A2)
+#define MISO_PIN (A4)
+
+Adafruit_PN532 nfc(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
 
 void setup(void) {
-  Serial.begin(115200);
+  Serial.begin(115200); // Make sure your serial terminal is closed before power the Core.
+  while(!Serial.available()) {
+    #ifdef SPARK_WLAN_SETUP
+      SPARK_WLAN_Loop(); // Open serial terminal and Press ENTER.
+    #endif
+  }
   Serial.println("Hello!");
 
   nfc.begin();
 
-  uint32_t versiondata = nfc.getFirmwareVersion();
-  if (! versiondata) {
-    Serial.print("Didn't find PN53x board");
-    while (1); // halt
+  uint32_t versiondata;
+  do {
+    versiondata = nfc.getFirmwareVersion();
+    if (!versiondata) {
+      Serial.print("Didn't find PN53x board");
+      delay(1000);
+      #ifdef SPARK_WLAN_SETUP
+        SPARK_WLAN_Loop(); // Keep connected to the Cloud while re-trying
+      #endif
+    }
   }
+  while(!versiondata);
+
   // Got ok data, print it out!
   Serial.print("Found chip PN5"); Serial.println((versiondata>>24) & 0xFF, HEX); 
   Serial.print("Firmware ver. "); Serial.print((versiondata>>16) & 0xFF, DEC); 
@@ -104,4 +112,3 @@ void loop(void) {
     Serial.println("");
   }
 }
-
