@@ -1,57 +1,47 @@
 /**************************************************************************/
 /*! 
     @file     Adafruit_PN532.cpp
-    @author   Adafruit Industries
-	@license  BSD (see license.txt)
-	
-	SPI Driver for NXP's PN532 NFC/13.56MHz RFID Transceiver
+    @author   Adafruit Industries, Paul Kourany, Technobly
+    @license  BSD (see license.txt)
+  
+  SPI Driver for NXP's PN532 NFC/13.56MHz RFID Transceiver
 
-	This is a library for the Adafruit PN532 NFC/RFID breakout boards
-	This library works with the Adafruit NFC breakout 
-	----> https://www.adafruit.com/products/364
-	
-	Check out the links above for our tutorials and wiring diagrams 
-	These chips use SPI to communicate, 4 required to interface
-	
-	Adafruit invests time and resources providing this open source code, 
-	please support Adafruit and open-source hardware by purchasing 
-	products from Adafruit!
+  This is a library for the Adafruit PN532 NFC/RFID breakout boards
+  This library works with the Adafruit NFC breakout 
+  ----> https://www.adafruit.com/products/364
+  
+  Check out the links above for our tutorials and wiring diagrams 
+  These chips use SPI to communicate, 4 required to interface
+  
+  Adafruit invests time and resources providing this open source code, 
+  please support Adafruit and open-source hardware by purchasing 
+  products from Adafruit!
 
 
-	@section  HISTORY
+  @section  HISTORY
 
-	v1.4S- Ported to Spark Core by Paul Kourany, May 22, 2014
-	
-    v1.4 - Added setPassiveActivationRetries()
-	
-    v1.2 - Added writeGPIO()
-         - Added readGPIO()
+  v1.4S- Ported to Spark Core by Paul Kourany, Technobly, May 22, 2014
+  
+  v1.4 - Added setPassiveActivationRetries()
+  
+  v1.2 - Added writeGPIO()
+       - Added readGPIO()
 
-    v1.1 - Changed readPassiveTargetID() to handle multiple UID sizes
-         - Added the following helper functions for text display
-             static void PrintHex(const byte * data, const uint32_t numBytes)
-             static void PrintHexChar(const byte * pbtData, const uint32_t numBytes)
-         - Added the following Mifare Classic functions:
-             bool mifareclassic_IsFirstBlock (uint32_t uiBlock)
-             bool mifareclassic_IsTrailerBlock (uint32_t uiBlock)
-             uint8_t mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t uidLen, uint32_t blockNumber, uint8_t keyNumber, uint8_t * keyData)
-             uint8_t mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8_t * data)
-             uint8_t mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8_t * data)
-         - Added the following Mifare Ultalight functions:
-             uint8_t mifareultralight_ReadPage (uint8_t page, uint8_t * buffer)	
+  v1.1 - Changed readPassiveTargetID() to handle multiple UID sizes
+       - Added the following helper functions for text display
+          static void PrintHex(const byte * data, const uint32_t numBytes)
+          static void PrintHexChar(const byte * pbtData, const uint32_t numBytes)
+       - Added the following Mifare Classic functions:
+          bool mifareclassic_IsFirstBlock (uint32_t uiBlock)
+          bool mifareclassic_IsTrailerBlock (uint32_t uiBlock)
+          uint8_t mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t uidLen, 
+            uint32_t blockNumber, uint8_t keyNumber, uint8_t * keyData)
+          uint8_t mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8_t * data)
+          uint8_t mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8_t * data)
+       - Added the following Mifare Ultalight functions:
+          uint8_t mifareultralight_ReadPage (uint8_t page, uint8_t * buffer) 
 */
 /**************************************************************************/
-//#include "application.h"
-
-/*
-#ifndef SPARK_CORE
- #if ARDUINO >= 100
-  #include "Arduino.h"
- #else
-  #include "WProgram.h"
- #endif
-#endif
-*/
 
 #include "Adafruit_PN532.h"
 
@@ -59,7 +49,7 @@ byte pn532ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 byte pn532response_firmwarevers[] = {0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
 
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
-//#define PN532DEBUG
+// #define PN532DEBUG
 // #define MIFAREDEBUG
 
 #define PN532_PACKBUFFSIZ 64
@@ -89,9 +79,8 @@ Adafruit_PN532::Adafruit_PN532(uint8_t clk, uint8_t miso, uint8_t mosi, uint8_t 
 /**************************************************************************/
 void Adafruit_PN532::begin() {
 
-  if(HW_SPI)
-  {
-    // Setup Harware SPI
+  if(HW_SPI == 1) {
+    // Setup Harware SPI, Set Clock Speed to 72/16 = 4.5MHz
     SPI.setClockDivider(SPI_CLOCK_DIV16);
       
     // Set data mode to SPI_MODE0 by default
@@ -106,8 +95,7 @@ void Adafruit_PN532::begin() {
     #ifdef PN532DEBUG
       Serial.print("[SPI PINS] CLK:A3,MISO:A4,MOSI:A5,SS:"); Serial.println(_ss);
     #endif
-  }
-  else {
+  } else {
     // Setup Software SPI
     pinMode(_ss, OUTPUT);
     pinMode(_clk, OUTPUT);
@@ -1039,41 +1027,41 @@ void Adafruit_PN532::spiwritecommand(uint8_t* cmd, uint8_t cmdlen) {
 void Adafruit_PN532::spiwrite(uint8_t c) {
 
 #if (HW_SPI == 1)
-  //Serial.println("SPIWRITE 1");
-	SPI.transfer(c);
-  //Serial.println("SPIWRITE 1");
+  SPI.transfer(c);
 #else
 #ifdef SPARK_CORE
-  //Serial.println("SPIWRITE 2");
-	for (uint8_t bit = 0; bit < 8; bit++) {
-		
-		if (c & (1 << (7-bit)))		// walks down mask from bit 7 to bit 0
-			PIN_MAP[_mosi].gpio_peripheral->BSRR = PIN_MAP[_mosi].gpio_pin; // Data High
-		else
-			PIN_MAP[_mosi].gpio_peripheral->BRR = PIN_MAP[_mosi].gpio_pin; // Data Low
-		
+  PIN_MAP[_mosi].gpio_peripheral->BRR = PIN_MAP[_mosi].gpio_pin; // Start with Data Low (MODE0)
+
+  for (uint8_t bit=0; bit<8; bit++) {
     asm volatile("mov r0, r0" "\n\t" "nop" "\n\t" "nop" "\n\t" "nop" "\n\t" ::: "r0", "cc", "memory");
     PIN_MAP[_clk].gpio_peripheral->BRR = PIN_MAP[_clk].gpio_pin; // Clock Low
+    if (c & (1<<bit)) { // walks up mask from bit 0 to bit 7
+      PIN_MAP[_mosi].gpio_peripheral->BSRR = PIN_MAP[_mosi].gpio_pin; // Data High
+    } else {
+      PIN_MAP[_mosi].gpio_peripheral->BRR = PIN_MAP[_mosi].gpio_pin; // Data Low
+    }
     asm volatile("mov r0, r0" "\n\t" "nop" "\n\t" "nop" "\n\t" "nop" "\n\t" ::: "r0", "cc", "memory");
-		PIN_MAP[_clk].gpio_peripheral->BSRR = PIN_MAP[_clk].gpio_pin; // Clock High (Data Shifted Out)
-	}
-  //Serial.println("SPIWRITE 2");
+    PIN_MAP[_clk].gpio_peripheral->BSRR = PIN_MAP[_clk].gpio_pin; // Clock High (Data Shifted Out) 
+  }
+  asm volatile("mov r0, r0" "\n\t" "nop" "\n\t" "nop" "\n\t" "nop" "\n\t" ::: "r0", "cc", "memory");
+  PIN_MAP[_clk].gpio_peripheral->BRR = PIN_MAP[_clk].gpio_pin; // Return Clock Low (MODE0)
+  PIN_MAP[_mosi].gpio_peripheral->BSRR = PIN_MAP[_mosi].gpio_pin; // Return Data High (MODE0)
 #else
-  //Serial.println("SPIWRITE 3");
-	digitalWrite(_clk, HIGH);
+  digitalWrite(_mosi, HIGH);
 
-	for (int8_t i=0; i<8; i++) {
-		digitalWrite(_clk, LOW);
-		if (c & _BV(i)) {
-			digitalWrite(_mosi, HIGH);
-		} else {
-			digitalWrite(_mosi, LOW);
-		}    
-		digitalWrite(_clk, HIGH);
-	}
-  //Serial.println("SPIWRITE 3");
-#endif //Spark
-#endif //HW SPI
+  for (uint8_t i=0; i<8; i++) {
+    digitalWrite(_clk, LOW);
+    if (c & (1<<i)) {
+      digitalWrite(_mosi, HIGH);
+    } else {
+      digitalWrite(_mosi, LOW);
+    }    
+    digitalWrite(_clk, HIGH);
+  }
+  digitalWrite(_clk, LOW);
+  digitalWrite(_mosi, HIGH);
+#endif // Spark
+#endif // HW SPI
 }
 
 /**************************************************************************/
@@ -1086,40 +1074,31 @@ void Adafruit_PN532::spiwrite(uint8_t c) {
 uint8_t Adafruit_PN532::spiread(void) {
   
 #if (HW_SPI == 1)
-  //Serial.println("SPIREAD 1");
-	int8_t x = SPI.transfer(0x55);
-  //Serial.println("SPIREAD 1");
+  uint8_t x = SPI.transfer(0x55);
 #else
 #ifdef SPARK_CORE
-  //Serial.println("SPIREAD 2");
-	int8_t x = 0;
-  PIN_MAP[_clk].gpio_peripheral->BSRR = PIN_MAP[_clk].gpio_pin; // Clock High
-
-	for (uint8_t bit = 0; bit < 8; bit++)  {
-		x <<= 1;
-		if (PIN_MAP[_miso].gpio_peripheral->IDR & PIN_MAP[_miso].gpio_pin) {
-			x |= 1;
-    }
-    asm volatile("mov r0, r0" "\n\t" "nop" "\n\t" "nop" "\n\t" "nop" "\n\t" ::: "r0", "cc", "memory");
-    PIN_MAP[_clk].gpio_peripheral->BRR = PIN_MAP[_clk].gpio_pin; // Clock Low
-    asm volatile("mov r0, r0" "\n\t" "nop" "\n\t" "nop" "\n\t" "nop" "\n\t" ::: "r0", "cc", "memory");
+  uint8_t x = 0;
+  
+  for (uint8_t bit=0; bit<8; bit++)  {
     PIN_MAP[_clk].gpio_peripheral->BSRR = PIN_MAP[_clk].gpio_pin; // Clock High (Data Shifted In)
-	}
-  //Serial.println("SPIREAD 2");
-#else
-  //Serial.println("SPIREAD 3");
-	int8_t x = 0;
-	digitalWrite(_clk, HIGH);
 
-	for (int8_t i=0; i<8; i++) {
-		if (digitalRead(_miso)) {
-			x |= _BV(i);
-		}
-		digitalWrite(_clk, LOW);
-		digitalWrite(_clk, HIGH);
-	}
-  //Serial.println("SPIREAD 3");
+    if (PIN_MAP[_miso].gpio_peripheral->IDR & PIN_MAP[_miso].gpio_pin) {
+      x |= (1<<bit);
+    }
+    //asm volatile("mov r0, r0" "\n\t" "nop" "\n\t" "nop" "\n\t" "nop" "\n\t" ::: "r0", "cc", "memory");
+    PIN_MAP[_clk].gpio_peripheral->BRR = PIN_MAP[_clk].gpio_pin; // Clock Low (On exit, Clock Low (MODE0))
+  }
+#else
+  uint8_t x = 0;
+
+  for (uint8_t i=0; i<8; i++) {
+    digitalWrite(_clk, HIGH);
+    if (digitalRead(_miso)) {
+      x |= (1<<i);
+    }
+    digitalWrite(_clk, LOW);
+  }
 #endif //Spark
 #endif //HW SPI
-	return x;
+  return x;
 }

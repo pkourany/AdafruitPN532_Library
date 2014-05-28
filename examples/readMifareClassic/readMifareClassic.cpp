@@ -1,7 +1,7 @@
 /**************************************************************************/
 /*! 
-    @file     readMifareClassic.pde
-    @author   Adafruit Industries
+    @file     readMifareClassic.cpp
+    @author   Adafruit Industries, Paul Kourany, Technobly
     @license  BSD (see license.txt)
 
     This example will wait for any ISO14443A card or tag, and
@@ -33,20 +33,13 @@ products from Adafruit!
 /**************************************************************************/
 #include "Adafruit_PN532.h"
 
-// Faster debugging!
+// Uncomment for faster debugging!
 #include "spark_disable_wlan.h"
 
-#ifdef SPARK_CORE
 #define SCK_PIN  (A3)
 #define MOSI_PIN (A5)
 #define SS_PIN   (A2)
 #define MISO_PIN (A4)
-#else
-#define SCK_PIN  (2)
-#define MOSI_PIN (3)
-#define SS_PIN   (4)
-#define MISO_PIN (5)
-#endif
 
 Adafruit_PN532 nfc(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
 
@@ -60,12 +53,6 @@ void setup(void) {
   Serial.println("Hello!");
 
   nfc.begin();
-
-  //uint32_t versiondata = nfc.getFirmwareVersion();
-  //if (! versiondata) {
-  //  Serial.print("Didn't find PN53x board");
-  //  while (1); // halt
-  //}
 
   uint32_t versiondata;
   do {

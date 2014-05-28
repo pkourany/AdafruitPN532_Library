@@ -1,46 +1,35 @@
 /**************************************************************************/
 /*! 
     @file     Adafruit_PN532.h
-    @author   Adafruit Industries
-	@license  BSD (see license.txt)
-	
+    @author   Adafruit Industries, Paul Kourany, Technobly
+    @license  BSD (see license.txt)
+  
 
-	This is a library for the Adafruit PN532 NFC/RFID breakout boards
-	This library works with the Adafruit NFC breakout 
-	----> https://www.adafruit.com/products/364
-	
-	Check out the links above for our tutorials and wiring diagrams 
-	These chips use SPI to communicate, 4 required to interface
-	
-	Adafruit invests time and resources providing this open source code, 
-	please support Adafruit and open-source hardware by purchasing 
-	products from Adafruit!
+  This is a library for the Adafruit PN532 NFC/RFID breakout boards
+  This library works with the Adafruit NFC breakout 
+  ----> https://www.adafruit.com/products/364
+  
+  Check out the links above for our tutorials and wiring diagrams 
+  These chips use SPI to communicate, 4 required to interface
+  
+  Adafruit invests time and resources providing this open source code, 
+  please support Adafruit and open-source hardware by purchasing 
+  products from Adafruit!
 
-	@section  HISTORY
+  @section  HISTORY
 
-	v1.1S- Ported to Spark Core by Paul Kourany, May 22, 2014
+  v1.1S - Ported to Spark Core by Paul Kourany, Technobly, May 28, 2014
 
-	v1.1  - Added full command list
-          - Added 'verbose' mode flag to constructor to toggle debug output
-          - Changed readPassiveTargetID() to return variable length values
-	
+  v1.1  - Added full command list
+        - Added 'verbose' mode flag to constructor to toggle debug output
+        - Changed readPassiveTargetID() to return variable length values
+  
 */
 /**************************************************************************/
-/*
-#ifndef SPARK_CORE
- #if ARDUINO >= 100
-  #include "Arduino.h"
- #else
-  #include "WProgram.h"
- #endif
-#else
-#include "application.h"
-#endif
-*/
 
 #include "application.h"
 
-#define HW_SPI	(1)		//Set to 1 for Hardware SPI and 0 for Software SPI
+#define HW_SPI (1)    //Set to 1 for Hardware SPI and 0 for Software SPI
 
 #define PN532_PREAMBLE                      (0x00)
 #define PN532_STARTCODE1                    (0x00)
