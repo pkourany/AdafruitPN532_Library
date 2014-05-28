@@ -26,16 +26,19 @@
 	
 */
 /**************************************************************************/
-
+/*
 #ifndef SPARK_CORE
-#if ARDUINO >= 100
- #include "Arduino.h"
-#else
- #include "WProgram.h"
-#endif
+ #if ARDUINO >= 100
+  #include "Arduino.h"
+ #else
+  #include "WProgram.h"
+ #endif
 #else
 #include "application.h"
 #endif
+*/
+
+#include "application.h"
 
 #define HW_SPI	(1)		//Set to 1 for Hardware SPI and 0 for Software SPI
 
