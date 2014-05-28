@@ -79,10 +79,16 @@ Adafruit_PN532::Adafruit_PN532(uint8_t clk, uint8_t miso, uint8_t mosi, uint8_t 
   _mosi = mosi;
   _ss = ss;
 
+#if (HW_SPI == 1)
+  SPI.begin();
+  SPI.setClockDivider(SPI_CLOCK_DIV16);
+  SPI.setDataMode(SPI_MODE0);
+#else
   pinMode(_ss, OUTPUT);
   pinMode(_clk, OUTPUT);
   pinMode(_mosi, OUTPUT);
   pinMode(_miso, INPUT);
+#endif
 }
 
 /**************************************************************************/
