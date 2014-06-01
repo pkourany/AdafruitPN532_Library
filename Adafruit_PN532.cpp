@@ -198,14 +198,21 @@ uint32_t Adafruit_PN532::getFirmwareVersion(void) {
 
   pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
   
-  if (! sendCommandCheckAck(pn532_packetbuffer, 1))
+  if (! sendCommandCheckAck(pn532_packetbuffer, 1)) {
+#ifdef PN532DEBUG
+    Serial.println("No ACK during getFirmwareVersion!");
+#endif
     return 0;
+  }
   
   // read data packet
   readspidata(pn532_packetbuffer, 12);
   
   // check some basic stuff
   if (0 != strncmp((char *)pn532_packetbuffer, (char *)pn532response_firmwarevers, 6)) {
+#ifdef PN532DEBUG
+    Serial.println("Firmware doesn't match!");
+#endif
     return 0;
   }
   
@@ -447,7 +454,26 @@ boolean Adafruit_PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
   pn532_packetbuffer[2] = cardbaudrate;
   
   if (! sendCommandCheckAck(pn532_packetbuffer, 3))
+  {
+#ifdef PN532DEBUG
+    Serial.println("No card(s) read");
+#endif
     return 0x0;  // no cards read
+  }
+
+  // Wait for a card to enter the field
+  uint8_t status = PN532_I2C_BUSY;
+#ifdef PN532DEBUG
+  Serial.println("Waiting for IRQ (indicates card presence)");
+#endif
+  while (wirereadstatus() != PN532_I2C_READY)
+  {
+    delay(10);
+  }
+
+#ifdef PN532DEBUG
+  Serial.println("Found a card"); 
+#endif
   
   // read data packet
   readspidata(pn532_packetbuffer, 20);
@@ -711,6 +737,9 @@ uint8_t Adafruit_PN532::mifareclassic_FormatNDEF (void)
   uint8_t sectorbuffer2[16] = {0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1};
   uint8_t sectorbuffer3[16] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+  // Note 0xA0 0xA1 0xA2 0xA3 0xA4 0xA5 must be used for key A
+  // for the MAD sector in NDEF records (sector 0)
+
   // Write block 1 and 2 to the card
   if (!(mifareclassic_WriteDataBlock (1, sectorbuffer1)))
     return 0;
@@ -894,7 +923,8 @@ uint8_t Adafruit_PN532::mifareultralight_ReadPage (uint8_t page, uint8_t * buffe
 
 /**************************************************************************/
 /*! 
-    @brief  Tries to read the SPI ACK signal
+    @brief  Tries to read the PN532 ACK frame (not to be confused with 
+          the I2C ACK signal)
 */
 /**************************************************************************/
 boolean Adafruit_PN532::spi_readack() {
