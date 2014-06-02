@@ -29,7 +29,10 @@
 
 #include "application.h"
 
-#define HW_SPI (1)    //Set to 1 for Hardware SPI and 0 for Software SPI
+#define PN532_MODE (PN532_I2C_MODE) // Set to PN532_SPI_MODE or PN532_I2C_MODE
+// The above PN532_MODE is a conditional build parameter used to optimize FLASH
+// memory usage.
+#define PN532_HW_SPI (1)    // Set to 1 for Hardware SPI and 0 for Software SPI
 
 #define PN532_PREAMBLE                      (0x00)
 #define PN532_STARTCODE1                    (0x00)
@@ -37,6 +40,7 @@
 #define PN532_POSTAMBLE                     (0x00)
 
 #define PN532_HOSTTOPN532                   (0xD4)
+#define PN532_PN532TOHOST                   (0xD5)
 
 // PN532 Commands
 #define PN532_COMMAND_DIAGNOSE              (0x00)
@@ -72,12 +76,24 @@
 #define PN532_COMMAND_TGRESPONSETOINITIATOR (0x90)
 #define PN532_COMMAND_TGGETTARGETSTATUS     (0x8A)
 
+#define PN532_RESPONSE_INDATAEXCHANGE       (0x41)
+#define PN532_RESPONSE_INLISTPASSIVETARGET  (0x4B)
+
 #define PN532_WAKEUP                        (0x55)
 
+#define PN532_READY                         (0x01) // Generic ready value for SPI and/or I2C modes
+#define PN532_SPI_MODE                      (0x03) // mimics SEL0,SEL1 jumper setting for SPI
 #define PN532_SPI_STATREAD                  (0x02)
 #define PN532_SPI_DATAWRITE                 (0x01)
 #define PN532_SPI_DATAREAD                  (0x03)
 #define PN532_SPI_READY                     (0x01)
+
+#define PN532_I2C_MODE                      (0x00) // mimics SEL0,SEL1 jumper setting for I2C
+#define PN532_I2C_ADDRESS                   (0x48 >> 1)
+#define PN532_I2C_READBIT                   (0x01)
+#define PN532_I2C_BUSY                      (0x00)
+#define PN532_I2C_READY                     (0x01)
+#define PN532_I2C_READYTIMEOUT              (20)
 
 #define PN532_MIFARE_ISO14443A              (0x00)
 
@@ -139,7 +155,11 @@
 
 class Adafruit_PN532{
  public:
+#if PN532_MODE == PN532_SPI_MODE
   Adafruit_PN532(uint8_t clk, uint8_t miso, uint8_t mosi, uint8_t ss);
+#elif PN532_MODE == PN532_I2C_MODE
+  Adafruit_PN532(uint8_t irq, uint8_t reset);
+#endif
   void begin(void);
   
   // Generic PN532 functions
@@ -151,7 +171,9 @@ class Adafruit_PN532{
   boolean setPassiveActivationRetries(uint8_t maxRetries);
   
   // ISO14443A functions
+  boolean inListPassiveTarget();
   boolean readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, uint8_t * uidLength);
+  boolean inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response, uint8_t * responseLength);
   
   // Mifare Classic functions
   bool mifareclassic_IsFirstBlock (uint32_t uiBlock);
@@ -170,15 +192,18 @@ class Adafruit_PN532{
   static void PrintHexChar(const byte * pbtData, const uint32_t numBytes);
 
  private:
-  uint8_t _ss, _clk, _mosi, _miso;
+  uint8_t _irq, _reset;  // pins used for I2C
+  uint8_t _ss, _clk, _mosi, _miso;  // pins used for SPI
   uint8_t _uid[7];  // ISO14443A uid
   uint8_t _uidLen;  // uid len
   uint8_t _key[6];  // Mifare Classic key
+  uint8_t inListedTag; // Tg number of inlisted tag.
 
-  boolean spi_readack();
-  uint8_t readspistatus(void);
-  void readspidata(uint8_t* buff, uint8_t n);
-  void spiwritecommand(uint8_t* cmd, uint8_t cmdlen);
-  void spiwrite(uint8_t c);
-  uint8_t spiread(void);
+  boolean readack();
+  uint8_t readstatus(void);
+  void readdata(uint8_t* buff, uint8_t n);
+  void writecommand(uint8_t* cmd, uint8_t cmdlen);
+  void writebyte(uint8_t c);
+  uint8_t readbyte(void);
+  boolean waitUntilReady(uint16_t timeout);
 };

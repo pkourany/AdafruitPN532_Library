@@ -49,12 +49,13 @@ byte pn532ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 byte pn532response_firmwarevers[] = {0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
 
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
-// #define PN532DEBUG
+ #define PN532DEBUG
 // #define MIFAREDEBUG
 
 #define PN532_PACKBUFFSIZ 64
 byte pn532_packetbuffer[PN532_PACKBUFFSIZ];
 
+#if PN532_MODE == PN532_SPI_MODE
 /**************************************************************************/
 /*! 
     @brief  Instantiates a new PN532 class
@@ -71,6 +72,23 @@ Adafruit_PN532::Adafruit_PN532(uint8_t clk, uint8_t miso, uint8_t mosi, uint8_t 
   _mosi = mosi;
   _ss = ss;
 }
+#elif PN532_MODE == PN532_I2C_MODE
+/**************************************************************************/
+/*! 
+    @brief  Instantiates a new PN532 class
+
+    @param  irq       Location of the IRQ pin
+    @param  reset     Location of the RSTPD_N pin
+*/
+/**************************************************************************/
+Adafruit_PN532::Adafruit_PN532(uint8_t irq, uint8_t reset) {
+  _irq = irq;
+  _reset = reset;
+
+  pinMode(_irq, INPUT);
+  pinMode(_reset, OUTPUT);
+}
+#endif
 
 /**************************************************************************/
 /*! 
@@ -78,8 +96,8 @@ Adafruit_PN532::Adafruit_PN532(uint8_t clk, uint8_t miso, uint8_t mosi, uint8_t 
 */
 /**************************************************************************/
 void Adafruit_PN532::begin() {
-
-  if(HW_SPI == 1) {
+#if PN532_MODE == PN532_SPI_MODE
+  if(PN532_HW_SPI == 1) {
     // Setup Harware SPI, Set Clock Speed to 72/16 = 4.5MHz
     SPI.setClockDivider(SPI_CLOCK_DIV16);
       
@@ -122,6 +140,15 @@ void Adafruit_PN532::begin() {
   
   //Serial.println("Begin 2");
   digitalWrite(_ss, HIGH);
+#elif PN532_MODE == PN532_I2C_MODE
+  Wire.begin();
+
+  // Reset the PN532  
+  digitalWrite(_reset, HIGH);
+  digitalWrite(_reset, LOW);
+  delay(400);
+  digitalWrite(_reset, HIGH);
+#endif
 }
  
 /**************************************************************************/
@@ -206,7 +233,7 @@ uint32_t Adafruit_PN532::getFirmwareVersion(void) {
   }
   
   // read data packet
-  readspidata(pn532_packetbuffer, 12);
+  readdata(pn532_packetbuffer, 12);
   
   // check some basic stuff
   if (0 != strncmp((char *)pn532_packetbuffer, (char *)pn532response_firmwarevers, 6)) {
@@ -245,10 +272,10 @@ boolean Adafruit_PN532::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16
   uint16_t timer = 0;
   
   // write the command
-  spiwritecommand(cmd, cmdlen);
+  writecommand(cmd, cmdlen);
   
   // Wait for chip to say its ready!
-  while (readspistatus() != PN532_SPI_READY) {
+  while (readstatus() != PN532_READY) {
     if (timeout != 0) {
       timer+=10;
       if (timer > timeout)  
@@ -257,14 +284,14 @@ boolean Adafruit_PN532::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16
     delay(10);
   }
   
-  // read acknowledgement
-  if (!spi_readack()) {
+  // read PN532 acknowledgement
+  if (!readack()) {
     return false;
   }
   
   timer = 0;
   // Wait for chip to say its ready!
-  while (readspistatus() != PN532_SPI_READY) {
+  while (readstatus() != PN532_READY) {
     if (timeout != 0) {
       timer+=10;
       if (timer > timeout)  
@@ -316,7 +343,7 @@ boolean Adafruit_PN532::writeGPIO(uint8_t pinstate) {
     return 0x0;
   
   // Read response packet (00 FF PLEN PLENCHECKSUM D5 CMD+1(0x0F) DATACHECKSUM 00)
-  readspidata(pn532_packetbuffer, 8);
+  readdata(pn532_packetbuffer, 8);
 
   #ifdef PN532DEBUG
     Serial.print("Received: ");
@@ -349,7 +376,7 @@ uint8_t Adafruit_PN532::readGPIO(void) {
     return 0x0;
   
   // Read response packet (00 FF PLEN PLENCHECKSUM D5 CMD+1(0x0D) P3 P7 IO1 DATACHECKSUM 00)
-  readspidata(pn532_packetbuffer, 11);
+  readdata(pn532_packetbuffer, 11);
 
   /* READGPIO response should be in the following format:
   
@@ -401,7 +428,7 @@ boolean Adafruit_PN532::SAMConfig(void) {
      return false;
 
   // read data packet
-  readspidata(pn532_packetbuffer, 8);
+  readdata(pn532_packetbuffer, 8);
   
   return  (pn532_packetbuffer[5] == 0x15);
 }
@@ -461,12 +488,13 @@ boolean Adafruit_PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
     return 0x0;  // no cards read
   }
 
+/* // Determined this code is not necessary to make I2C mode work
+#if PN532_MODE == PN532_I2C_MODE
   // Wait for a card to enter the field
-  uint8_t status = PN532_I2C_BUSY;
 #ifdef PN532DEBUG
   Serial.println("Waiting for IRQ (indicates card presence)");
 #endif
-  while (wirereadstatus() != PN532_I2C_READY)
+  while (readstatus() != PN532_READY)
   {
     delay(10);
   }
@@ -474,9 +502,12 @@ boolean Adafruit_PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
 #ifdef PN532DEBUG
   Serial.println("Found a card"); 
 #endif
+// PN532_MODE
+#endif 
+*/
   
   // read data packet
-  readspidata(pn532_packetbuffer, 20);
+  readdata(pn532_packetbuffer, 20);
   // check some basic stuff
 
   /* ISO14443A card response should be in the following format:
@@ -606,7 +637,7 @@ uint8_t Adafruit_PN532::mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t 
     return 0;
 
   // Read the response packet
-  readspidata(pn532_packetbuffer, 12);
+  readdata(pn532_packetbuffer, 12);
   // check if the response is valid and we are authenticated???
   // for an auth success it should be bytes 5-7: 0xD5 0x41 0x00
   // Mifare auth error is technically byte 7: 0x14 but anything other and 0x00 is not good
@@ -657,7 +688,7 @@ uint8_t Adafruit_PN532::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8_
   }
 
   /* Read the response packet */
-  readspidata(pn532_packetbuffer, 26);
+  readdata(pn532_packetbuffer, 26);
 
   /* If byte 8 isn't 0x00 we probably have an error */
   if (pn532_packetbuffer[7] != 0x00)
@@ -719,7 +750,7 @@ uint8_t Adafruit_PN532::mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8
   delay(10);
   
   /* Read the response packet */
-  readspidata(pn532_packetbuffer, 26);
+  readdata(pn532_packetbuffer, 26);
 
   return 1;  
 }
@@ -881,7 +912,7 @@ uint8_t Adafruit_PN532::mifareultralight_ReadPage (uint8_t page, uint8_t * buffe
   }
   
   /* Read the response packet */
-  readspidata(pn532_packetbuffer, 26);
+  readdata(pn532_packetbuffer, 26);
   #ifdef MIFAREDEBUG
     Serial.println("Received: ");
     Adafruit_PN532::PrintHexChar(pn532_packetbuffer, 26);
@@ -916,10 +947,7 @@ uint8_t Adafruit_PN532::mifareultralight_ReadPage (uint8_t page, uint8_t * buffe
   return 1;
 }
 
-
-
-/************** high level SPI */
-
+/************** high level SPI/I2C */
 
 /**************************************************************************/
 /*! 
@@ -927,62 +955,90 @@ uint8_t Adafruit_PN532::mifareultralight_ReadPage (uint8_t page, uint8_t * buffe
           the I2C ACK signal)
 */
 /**************************************************************************/
-boolean Adafruit_PN532::spi_readack() {
+boolean Adafruit_PN532::readack() {
   uint8_t ackbuff[6];
   
-  readspidata(ackbuff, 6);
+  readdata(ackbuff, 6);
   
   return (0 == strncmp((char *)ackbuff, (char *)pn532ack, 6));
 }
 
-/************** mid level SPI */
+/************** mid level SPI/I2C */
 
 /**************************************************************************/
 /*! 
-    @brief  Reads the SPI status register (to know if the PN532 is ready)
+    @brief  Reads the SPI/I2C status register (to know if the PN532 is ready)
 */
 /**************************************************************************/
-uint8_t Adafruit_PN532::readspistatus(void) {
+uint8_t Adafruit_PN532::readstatus(void) {
+#if PN532_MODE == PN532_SPI_MODE
   digitalWrite(_ss, LOW);
   delay(2); 
-  spiwrite(PN532_SPI_STATREAD);
+  writebyte(PN532_SPI_STATREAD);
   // read byte
-  uint8_t x = spiread();
+  uint8_t x = readbyte();
   
   digitalWrite(_ss, HIGH);
   return x;
+#elif PN532_MODE == PN532_I2C_MODE
+  uint8_t x = digitalRead(_irq);
+  
+  if (x == 1)
+    return PN532_I2C_BUSY;
+  else
+    return PN532_I2C_READY;
+#endif
 }
 
 /**************************************************************************/
 /*! 
-    @brief  Reads n bytes of data from the PN532 via SPI
+    @brief  Reads n bytes of data from the PN532 via SPI/I2C
 
     @param  buff      Pointer to the buffer where data will be written
     @param  n         Number of bytes to be read
 */
 /**************************************************************************/
-void Adafruit_PN532::readspidata(uint8_t* buff, uint8_t n) {
-  digitalWrite(_ss, LOW);
-  delay(2); 
-  spiwrite(PN532_SPI_DATAREAD);
-
+void Adafruit_PN532::readdata(uint8_t* buff, uint8_t n) {
 #ifdef PN532DEBUG
   Serial.print("Reading: ");
 #endif
+
+#if PN532_MODE == PN532_SPI_MODE
+  digitalWrite(_ss, LOW);
+#endif
+
+  delay(2); // common delay for SPI and I2C modes
+
+#if PN532_MODE == PN532_SPI_MODE
+  writebyte(PN532_SPI_DATAREAD);
+#elif PN532_MODE == PN532_I2C_MODE
+  // Start read (n+1 to take into account leading 0x01 with I2C)
+  Wire.requestFrom((uint8_t)PN532_I2C_ADDRESS, (uint8_t)(n+2));
+  // Discard the leading 0x01
+  readbyte();
+#endif
+
   for (uint8_t i=0; i<n; i++) {
     delay(1);
-    buff[i] = spiread();
+    buff[i] = readbyte();
 #ifdef PN532DEBUG
     Serial.print(" 0x");
     Serial.print(buff[i], HEX);
 #endif
   }
 
+#if PN532_MODE == PN532_I2C_MODE
+  // Discard trailing 0x00 0x00
+  // wirerecv();
+#endif
+
+#if PN532_MODE == PN532_SPI_MODE
+  digitalWrite(_ss, HIGH);
+#endif
+
 #ifdef PN532DEBUG
   Serial.println();
 #endif
-
-  digitalWrite(_ss, HIGH);
 }
 
 /**************************************************************************/
@@ -994,7 +1050,7 @@ void Adafruit_PN532::readspidata(uint8_t* buff, uint8_t n) {
     @param  cmdlen    Command length in bytes 
 */
 /**************************************************************************/
-void Adafruit_PN532::spiwritecommand(uint8_t* cmd, uint8_t cmdlen) {
+void Adafruit_PN532::writecommand(uint8_t* cmd, uint8_t cmdlen) {
   uint8_t checksum;
 
   cmdlen++;
@@ -1003,19 +1059,24 @@ void Adafruit_PN532::spiwritecommand(uint8_t* cmd, uint8_t cmdlen) {
   Serial.print("\nSending: ");
 #endif
 
+#if PN532_MODE == PN532_SPI_MODE
   digitalWrite(_ss, LOW);
   delay(2);     // or whatever the delay is for waking up the board
-  spiwrite(PN532_SPI_DATAWRITE);
+  writebyte(PN532_SPI_DATAWRITE);
+#elif PN532_MODE == PN532_I2C_MODE
+  delay(2);     // or whatever the delay is for waking up the board
+  Wire.beginTransmission(PN532_I2C_ADDRESS); // I2C Start
+#endif
 
   checksum = PN532_PREAMBLE + PN532_PREAMBLE + PN532_STARTCODE2;
-  spiwrite(PN532_PREAMBLE);
-  spiwrite(PN532_PREAMBLE);
-  spiwrite(PN532_STARTCODE2);
+  writebyte(PN532_PREAMBLE);
+  writebyte(PN532_PREAMBLE);
+  writebyte(PN532_STARTCODE2);
 
-  spiwrite(cmdlen);
-  spiwrite(~cmdlen + 1);
+  writebyte(cmdlen);
+  writebyte(~cmdlen + 1);
  
-  spiwrite(PN532_HOSTTOPN532);
+  writebyte(PN532_HOSTTOPN532);
   checksum += PN532_HOSTTOPN532;
 
 #ifdef PN532DEBUG
@@ -1028,16 +1089,21 @@ void Adafruit_PN532::spiwritecommand(uint8_t* cmd, uint8_t cmdlen) {
 #endif
 
   for (uint8_t i=0; i<cmdlen-1; i++) {
-   spiwrite(cmd[i]);
+   writebyte(cmd[i]);
    checksum += cmd[i];
 #ifdef PN532DEBUG
    Serial.print(" 0x"); Serial.print(cmd[i], HEX);
 #endif
   }
-  
-  spiwrite(~checksum);
-  spiwrite(PN532_POSTAMBLE);
+
+  writebyte(~checksum);
+  writebyte(PN532_POSTAMBLE);
+
+#if PN532_MODE == PN532_SPI_MODE
   digitalWrite(_ss, HIGH);
+#elif PN532_MODE == PN532_I2C_MODE
+  Wire.endTransmission(); // I2C Stop
+#endif
 
 #ifdef PN532DEBUG
   Serial.print(" 0x"); Serial.print(~checksum, HEX);
@@ -1045,18 +1111,19 @@ void Adafruit_PN532::spiwritecommand(uint8_t* cmd, uint8_t cmdlen) {
   Serial.println();
 #endif
 } 
-/************** low level SPI */
+
+/************** low level SPI/I2C */
 
 /**************************************************************************/
 /*! 
-    @brief  Low-level SPI write wrapper
+    @brief  Low-level SPI/I2C write wrapper
 
-    @param  c       8-bit command to write to the SPI bus
+    @param  c       8-bit command to write to the SPI/I2C bus
 */
 /**************************************************************************/
-void Adafruit_PN532::spiwrite(uint8_t c) {
-
-#if (HW_SPI == 1)
+void Adafruit_PN532::writebyte(uint8_t c) {
+#if PN532_MODE == PN532_SPI_MODE
+#if (PN532_HW_SPI == 1)
   SPI.transfer(c);
 #else
 #ifdef SPARK_CORE
@@ -1092,18 +1159,21 @@ void Adafruit_PN532::spiwrite(uint8_t c) {
   digitalWrite(_mosi, HIGH);
 #endif // Spark
 #endif // HW SPI
+#elif PN532_MODE == PN532_I2C_MODE
+  Wire.write((uint8_t)c);
+#endif
 }
 
 /**************************************************************************/
 /*! 
-    @brief  Low-level SPI read wrapper
+    @brief  Low-level SPI/I2C read wrapper
 
-    @returns The 8-bit value that was read from the SPI bus
+    @returns The 8-bit value that was read from the SPI/I2C bus
 */
 /**************************************************************************/
-uint8_t Adafruit_PN532::spiread(void) {
-  
-#if (HW_SPI == 1)
+uint8_t Adafruit_PN532::readbyte(void) {
+#if PN532_MODE == PN532_SPI_MODE
+#if (PN532_HW_SPI == 1)
   uint8_t x = SPI.transfer(0x55);
 #else
 #ifdef SPARK_CORE
@@ -1131,4 +1201,182 @@ uint8_t Adafruit_PN532::spiread(void) {
 #endif //Spark
 #endif //HW SPI
   return x;
+#elif PN532_MODE == PN532_I2C_MODE
+  return Wire.read();
+#endif
+}
+
+/**************************************************************************/
+/*! 
+    @brief  Waits until the PN532 is ready.
+
+    @param  timeout   Timeout before giving up
+*/
+/**************************************************************************/
+boolean Adafruit_PN532::waitUntilReady(uint16_t timeout) {
+  uint16_t timer = 0;
+  while(readstatus() != PN532_READY) {
+    if (timeout != 0) {
+      timer += 10;
+      if (timer > timeout) {
+        return false;
+      }
+    }
+    delay(10);
+  }
+  return true;
+}
+
+/**************************************************************************/
+/*! 
+    @brief  Exchanges an APDU with the currently inlisted peer
+
+    @param  send            Pointer to data to send
+    @param  sendLength      Length of the data to send
+    @param  response        Pointer to response data
+    @param  responseLength  Pointer to the response data length
+*/
+/**************************************************************************/
+boolean Adafruit_PN532::inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response, uint8_t * responseLength) {
+  if (sendLength > PN532_PACKBUFFSIZ -2) {
+    #ifdef PN532DEBUG
+      Serial.println("APDU length too long for packet buffer");
+    #endif
+    return false;
+  }
+  uint8_t i;
+  
+  pn532_packetbuffer[0] = 0x40; // PN532_COMMAND_INDATAEXCHANGE;
+  pn532_packetbuffer[1] = inListedTag;
+  for (i=0; i<sendLength; ++i) {
+    pn532_packetbuffer[i+2] = send[i];
+  }
+  
+  if (!sendCommandCheckAck(pn532_packetbuffer,sendLength+2,1000)) {
+    #ifdef PN532DEBUG
+      Serial.println("Could not send ADPU");
+    #endif
+    return false;
+  }
+
+  if (!waitUntilReady(1000)) {
+    #ifdef PN532DEBUG
+      Serial.println("Response never received for ADPU...");
+    #endif
+    return false;
+  }
+
+  readdata(pn532_packetbuffer,sizeof(pn532_packetbuffer));
+  
+  if (pn532_packetbuffer[0] == 0 && pn532_packetbuffer[1] == 0 && pn532_packetbuffer[2] == 0xff) {
+    uint8_t length = pn532_packetbuffer[3];
+    if (pn532_packetbuffer[4]!=(uint8_t)(~length+1)) {
+      #ifdef PN532DEBUG
+        Serial.println("Length check invalid");
+        Serial.println(length,HEX);
+        Serial.println((~length)+1,HEX);
+      #endif
+      return false;
+    }
+    if (pn532_packetbuffer[5]==PN532_PN532TOHOST && pn532_packetbuffer[6]==PN532_RESPONSE_INDATAEXCHANGE) {
+      if ((pn532_packetbuffer[7] & 0x3f)!=0) {
+        #ifdef PN532DEBUG
+          Serial.println("Status code indicates an error");
+        #endif
+        return false;
+      }
+      
+      length -= 3;
+      
+      if (length > *responseLength) {
+        length = *responseLength; // silent truncation...
+      }
+      
+      for (i=0; i<length; ++i) {
+        response[i] = pn532_packetbuffer[8+i];
+      }
+      *responseLength = length;
+      
+      return true;
+    } 
+    else {
+      Serial.print("Don't know how to handle this command: ");
+      Serial.println(pn532_packetbuffer[6],HEX);
+      return false;
+    } 
+  } 
+  else {
+    Serial.println("Preamble missing");
+    return false;
+  }
+}
+
+/**************************************************************************/
+/*! 
+    @brief  'InLists' a passive target. PN532 acting as reader/initiator,
+            peer acting as card/responder.
+*/
+/**************************************************************************/
+boolean Adafruit_PN532::inListPassiveTarget() {
+  pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
+  pn532_packetbuffer[1] = 1;
+  pn532_packetbuffer[2] = 0;
+  
+  #ifdef PN532DEBUG 
+    Serial.print("About to inList passive target");
+  #endif
+
+  if (!sendCommandCheckAck(pn532_packetbuffer,3,1000)) {
+    #ifdef PN532DEBUG
+      Serial.println("Could not send inlist message");
+    #endif
+    return false;
+  }
+
+  if (!waitUntilReady(30000)) {
+    return false;
+  }
+
+  readdata(pn532_packetbuffer,sizeof(pn532_packetbuffer));
+  
+  if (pn532_packetbuffer[0] == 0 && pn532_packetbuffer[1] == 0 && pn532_packetbuffer[2] == 0xff) {
+    uint8_t length = pn532_packetbuffer[3];
+    if (pn532_packetbuffer[4]!=(uint8_t)(~length+1)) {
+      #ifdef PN532DEBUG
+        Serial.println("Length check invalid");
+        Serial.println(length,HEX);
+        Serial.println((~length)+1,HEX);
+      #endif
+      return false;
+    }
+    if (pn532_packetbuffer[5]==PN532_PN532TOHOST && pn532_packetbuffer[6]==PN532_RESPONSE_INLISTPASSIVETARGET) {
+      if (pn532_packetbuffer[7] != 1) {
+        #ifdef PN532DEBUG
+        Serial.println("Unhandled number of targets inlisted");
+        #endif
+        Serial.println("Number of tags inlisted:");
+        Serial.println(pn532_packetbuffer[7]);
+        return false;
+      }
+      
+      inListedTag = pn532_packetbuffer[8];
+      Serial.print("Tag number: ");
+      Serial.println(inListedTag);
+      
+      return true;
+    } else {
+      #ifdef PN532DEBUG
+        Serial.print("Unexpected response to inlist passive host");
+      #endif
+      return false;
+    } 
+  } 
+  else {
+    #ifdef PN532DEBUG
+      Serial.println("Preamble missing");
+    #endif
+    return false;
+  }
+
+  return true;
 }
