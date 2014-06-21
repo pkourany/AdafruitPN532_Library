@@ -36,12 +36,25 @@ products from Adafruit!
 // Uncomment for faster debugging!
 #include "spark_disable_wlan.h"
 
+// SPI Mode defines
 #define SCK_PIN  (A3)
 #define MOSI_PIN (A5)
 #define SS_PIN   (A2)
 #define MISO_PIN (A4)
 
-Adafruit_PN532 nfc(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
+// I2C Mode defines
+#define IRQ_PIN  (D2) // This is how the PN532 Shield gets ready status in I2C mode
+#define RST_PIN  (D3) // Necessary for I2C mode
+
+// IMPORTANT! CONFIGURE to use SPI or I2C mode:
+// Set PN532_MODE to PN532_SPI_MODE or PN532_I2C_MODE on line 32 of Adafruit_PN532.h
+// If using SPI mode, an additional option is to set PN532_HW_SPI to 1 for hardware
+// SPI, or 0 for software SPI on line 35 of Adafruit_PN532.h
+#if PN532_MODE == PN532_SPI_MODE
+  Adafruit_PN532 nfc(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
+#elif PN532_MODE == PN532_I2C_MODE
+  Adafruit_PN532 nfc(IRQ_PIN, RST_PIN);
+#endif
 
 void setup(void) {
   Serial.begin(115200); // Make sure your serial terminal is closed before power the Core.
